@@ -31,10 +31,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     var inScreensaver = false
     var lastRSSI: Int? = nil
 
+    // 打开菜单
     func menuWillOpen(_ menu: NSMenu) {
-        if menu == deviceMenu {
+        if menu == deviceMenu { // 设备列表菜单
             ble.startScanning()
-        } else if menu == lockRSSIMenu {
+        } else if menu == lockRSSIMenu { // 锁定的rssi菜单
             for item in menu.items {
                 if item.tag == ble.lockRSSI {
                     item.state = .on
@@ -42,7 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                     item.state = .off
                 }
             }
-        } else if menu == unlockRSSIMenu {
+        } else if menu == unlockRSSIMenu { // 解锁的rssi菜单
             for item in menu.items {
                 if item.tag == ble.unlockRSSI {
                     item.state = .on
@@ -50,7 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                     item.state = .off
                 }
             }
-        } else if menu == timeoutMenu {
+        } else if menu == timeoutMenu { // 超时菜单
             for item in menu.items {
                 if item.tag == Int(ble.signalTimeout) {
                     item.state = .on
@@ -58,7 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                     item.state = .off
                 }
             }
-        } else if menu == lockDelayMenu {
+        } else if menu == lockDelayMenu { // 延时锁定菜单
             for item in menu.items {
                 if item.tag == Int(ble.proximityTimeout) {
                     item.state = .on
@@ -277,6 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         return false
     }
     
+    // 尝试解锁屏幕
     func tryUnlockScreen() {
         guard !manualLock else { return }
         guard ble.presence else { return }
@@ -285,9 +287,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         guard !displaySleep else { return }
 
         if inScreensaver {
-            // In screensaver, make sure Login panel is displayed
+            // 在屏幕保护程序中，确保显示登录面板
             let src = CGEventSource(stateID: .hidSystemState)
-            // Esc key down and up
+            // Esc 键按下和抬起
             CGEvent(keyboardEventSource: src, virtualKey: 0x35, keyDown: true)?.post(tap: .cghidEventTap)
             CGEvent(keyboardEventSource: src, virtualKey: 0x35, keyDown: false)?.post(tap: .cghidEventTap)
         }
@@ -300,8 +302,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
             
             print("Entering password")
             self.unlockedAt = Date().timeIntervalSince1970
+            // 输入密码解锁
             self.fakeKeyStrokes(password)
             self.playNowPlaying()
+            // 运行脚本 由 BLEUnlock 解锁
             self.runScript("unlocked")
         })
     }
@@ -344,6 +348,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
             print("onUnlock")
             if Date().timeIntervalSince1970 >= self.unlockedAt + 10 {
                 if self.ble.unlockRSSI != self.ble.UNLOCK_DISABLED && !self.prefs.bool(forKey: "wakeWithoutUnlocking") {
+                    // 运行脚本 手动解锁
                     self.runScript("intruded")
                 }
                 self.playNowPlaying()
@@ -563,6 +568,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         AboutBox.showAboutBox()
     }
 
+    // 构造rssi菜单
     func constructRSSIMenu(_ menu: NSMenu, _ action: Selector) {
         menu.addItem(withTitle: t("closer"), action: nil, keyEquivalent: "")
         for proximity in stride(from: -30, to: -100, by: -5) {
@@ -573,31 +579,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         menu.delegate = self
     }
     
+    // 构造菜单
     func constructMenu() {
+        // 选定设备信息
         monitorMenuItem = mainMenu.addItem(withTitle: t("device_not_set"), action: nil, keyEquivalent: "")
         
         var item: NSMenuItem
 
+        // 立即锁定
         item = mainMenu.addItem(withTitle: t("lock_now"), action: #selector(lockNow), keyEquivalent: "")
         mainMenu.addItem(NSMenuItem.separator())
 
+        // 设备列表
         item = mainMenu.addItem(withTitle: t("device"), action: nil, keyEquivalent: "")
         item.submenu = deviceMenu
         deviceMenu.delegate = self
+        // 设备列表 -> 扫描中…
         deviceMenu.addItem(withTitle: t("scanning"), action: nil, keyEquivalent: "")
 
+        // 解锁 RSSI
         let unlockRSSIItem = mainMenu.addItem(withTitle: t("unlock_rssi"), action: nil, keyEquivalent: "")
         unlockRSSIItem.submenu = unlockRSSIMenu
+        // 解锁 RSSI -> 禁用
         item = unlockRSSIMenu.addItem(withTitle: t("disabled"), action: #selector(setUnlockRSSI), keyEquivalent: "")
         item.tag = ble.UNLOCK_DISABLED
         constructRSSIMenu(unlockRSSIMenu, #selector(setUnlockRSSI))
 
+        // 锁定 RSSI
         let lockRSSIItem = mainMenu.addItem(withTitle: t("lock_rssi"), action: nil, keyEquivalent: "")
         lockRSSIItem.submenu = lockRSSIMenu
         constructRSSIMenu(lockRSSIMenu, #selector(setLockRSSI))
+        // 锁定 RSSI -> 禁用
         item = lockRSSIMenu.addItem(withTitle: t("disabled"), action: #selector(setLockRSSI), keyEquivalent: "")
         item.tag = ble.LOCK_DISABLED
 
+        // 延时锁定
         let lockDelayItem = mainMenu.addItem(withTitle: t("lock_delay"), action: nil, keyEquivalent: "")
         lockDelayItem.submenu = lockDelayMenu
         lockDelayMenu.addItem(withTitle: "2 " + t("seconds"), action: #selector(setLockDelay), keyEquivalent: "").tag = 2
@@ -609,6 +625,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         lockDelayMenu.addItem(withTitle: "5 " + t("minutes"), action: #selector(setLockDelay), keyEquivalent: "").tag = 300
         lockDelayMenu.delegate = self
 
+        // 无信号超时
         let timeoutItem = mainMenu.addItem(withTitle: t("timeout"), action: nil, keyEquivalent: "")
         timeoutItem.submenu = timeoutMenu
         timeoutMenu.addItem(withTitle: "30 " + t("seconds"), action: #selector(setTimeout), keyEquivalent: "").tag = 30
@@ -618,44 +635,55 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         timeoutMenu.addItem(withTitle: "10 " + t("minutes"), action: #selector(setTimeout), keyEquivalent: "").tag = 600
         timeoutMenu.delegate = self
 
+        // 靠近唤醒
         item = mainMenu.addItem(withTitle: t("wake_on_proximity"), action: #selector(toggleWakeOnProximity), keyEquivalent: "")
         if prefs.bool(forKey: "wakeOnProximity") {
             item.state = .on
         }
 
+        // 唤醒时不需解锁
         item = mainMenu.addItem(withTitle: t("wake_without_unlocking"), action: #selector(toggleWakeWithoutUnlocking), keyEquivalent: "")
         if prefs.bool(forKey: "wakeWithoutUnlocking") {
             item.state = .on
         }
 
+        // 锁定时暂停 播放中
         item = mainMenu.addItem(withTitle: t("pause_now_playing"), action: #selector(togglePauseNowPlaying), keyEquivalent: "")
         if prefs.bool(forKey: "pauseItunes") {
             item.state = .on
         }
 
+        // 用屏保来锁定它
         item = mainMenu.addItem(withTitle: t("use_screensaver_to_lock"), action: #selector(toggleUseScreensaver), keyEquivalent: "")
         if prefs.bool(forKey: "screensaver") {
             item.state = .on
         }
 
+        // 锁定时关闭屏幕
         item = mainMenu.addItem(withTitle: t("sleep_display"), action: #selector(toggleSleepDisplay), keyEquivalent: "")
         if prefs.bool(forKey: "sleepDisplay") {
             item.state = .on
         }
         
+        // 设置密码…
         mainMenu.addItem(withTitle: t("set_password"), action: #selector(askPassword), keyEquivalent: "")
 
+        // 被动模式
         item = mainMenu.addItem(withTitle: t("passive_mode"), action: #selector(togglePassiveMode), keyEquivalent: "")
         item.state = prefs.bool(forKey: "passiveMode") ? .on : .off
         
+        // 开机启动
         item = mainMenu.addItem(withTitle: t("launch_at_login"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         item.state = prefs.bool(forKey: "launchAtLogin") ? .on : .off
         
+        // 设置最小RSSI…
         mainMenu.addItem(withTitle: t("set_rssi_threshold"), action: #selector(setRSSIThreshold),
                          keyEquivalent: "")
 
+        // 关于BLEUnlock
         mainMenu.addItem(NSMenuItem.separator())
         mainMenu.addItem(withTitle: t("about"), action: #selector(showAboutBox), keyEquivalent: "")
+        // 退出BLEUnlock
         mainMenu.addItem(NSMenuItem.separator())
         mainMenu.addItem(withTitle: t("quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         statusItem.menu = mainMenu
@@ -673,14 +701,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         }
     }
 
+    // 在应用程序完成启动时执行的逻辑
     func applicationDidFinishLaunching(_ aNotification: Notification) {
+        // 设置图标
         if let button = statusItem.button {
             button.image = NSImage(named: "StatusBarDisconnected")
+            // 构造菜单
             constructMenu()
         }
+        // 设置默认值
         ble.delegate = self
         if let str = prefs.string(forKey: "device") {
             if let uuid = UUID(uuidString: str) {
+                // 监听设备
                 monitorDevice(uuid: uuid)
             }
         }
@@ -706,12 +739,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
             ble.proximityTimeout = Double(lockDelay)
         }
 
+        // 设置通知中心的代理
         NSUserNotificationCenter.default.delegate = self
 
+        // 事件监听
         let nc = NSWorkspace.shared.notificationCenter;
+        // 屏幕睡眠通知
         nc.addObserver(self, selector: #selector(onDisplaySleep), name: NSWorkspace.screensDidSleepNotification, object: nil)
+        // 屏幕唤醒通知
         nc.addObserver(self, selector: #selector(onDisplayWake), name: NSWorkspace.screensDidWakeNotification, object: nil)
+        // 系统即将进入睡眠
         nc.addObserver(self, selector: #selector(onSystemSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        // 系统从睡眠状态唤醒
         nc.addObserver(self, selector: #selector(onSystemWake), name: NSWorkspace.didWakeNotification, object: nil)
 
         let dnc = DistributedNotificationCenter.default

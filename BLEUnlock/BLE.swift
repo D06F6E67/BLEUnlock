@@ -40,6 +40,7 @@ class Device: NSObject {
     override var description: String {
         get {
             if macAddr == nil || blName == nil {
+                // 获取设备信息
                 if let info = getLEDeviceInfoFromUUID(uuid.description) {
                     blName = info.name
                     macAddr = info.macAddr
@@ -141,16 +142,19 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var connectionTimer : Timer? = nil
 
     func scanForPeripherals() {
+        // 正在扫描就退出
         guard !centralMgr.isScanning else { return }
         centralMgr.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         //print("Start scanning")
     }
 
+    // 启动扫描
     func startScanning() {
         scanMode = true
         scanForPeripherals()
     }
 
+    // 停止扫描
     func stopScanning() {
         scanMode = false
         if activeModeTimer != nil {
@@ -191,6 +195,7 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             self.delegate?.updateRSSI(rssi: nil, active: false)
             if self.presence {
                 self.presence = false
+                // 信号丢失锁定
                 self.delegate?.updatePresence(presence: self.presence, reason: "lost")
             }
         })
@@ -254,6 +259,7 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             proximityTimer = Timer.scheduledTimer(withTimeInterval: proximityTimeout, repeats: false, block: { _ in
                 print("Device is away")
                 self.presence = false
+                // rssi 低锁定
                 self.delegate?.updatePresence(presence: self.presence, reason: "away")
                 self.proximityTimer = nil
             })
@@ -299,12 +305,14 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
 
     //MARK:- CBCentralManagerDelegate start
 
-    func centralManager(_ central: CBCentralManager,
-                        didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String : Any],
-                        rssi RSSI: NSNumber)
+    // 用于处理中央设备发现外围设备的事件
+    func centralManager(_ central: CBCentralManager, // 中央设备管理器实例，即触发此事件的中央设备
+                        didDiscover peripheral: CBPeripheral, // 发现的外围设备
+                        advertisementData: [String : Any], // 包含外围设备广播数据的字典
+                        rssi RSSI: NSNumber) // 接收信号强度，表示中央设备与外围设备之间的信号强度
     {
         let rssi = RSSI.intValue > 0 ? 0 : RSSI.intValue
+
         if let uuid = monitoredUUID {
             if peripheral.identifier.description == uuid.description {
                 if monitoredPeripheral == nil {
