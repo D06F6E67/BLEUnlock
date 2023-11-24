@@ -2,29 +2,10 @@ import Foundation
 import CoreBluetooth
 import Accelerate
 
-let DeviceInformation = CBUUID(string:"180A")
+let DeviceInformation = CBUUID(string:"180A") 
 let ManufacturerName = CBUUID(string:"2A29")
 let ModelName = CBUUID(string:"2A24")
 let ExposureNotification = CBUUID(string:"FD6F")
-
-func getMACFromUUID(_ uuid: String) -> String? {
-    guard let plist = NSDictionary(contentsOfFile: "/Library/Preferences/com.apple.Bluetooth.plist") else { return nil }
-    guard let cbcache = plist["CoreBluetoothCache"] as? NSDictionary else { return nil }
-    guard let device = cbcache[uuid] as? NSDictionary else { return nil }
-    return device["DeviceAddress"] as? String
-}
-
-func getNameFromMAC(_ mac: String) -> String? {
-    guard let plist = NSDictionary(contentsOfFile: "/Library/Preferences/com.apple.Bluetooth.plist") else { return nil }
-    guard let devcache = plist["DeviceCache"] as? NSDictionary else { return nil }
-    guard let device = devcache[mac] as? NSDictionary else { return nil }
-    if let name = device["Name"] as? String {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        if trimmed == "" { return nil }
-        return trimmed
-    }
-    return nil
-}
 
 class Device: NSObject {
     let uuid : UUID!
@@ -39,22 +20,15 @@ class Device: NSObject {
     
     override var description: String {
         get {
-            if macAddr == nil || blName == nil {
-                // 获取设备信息
-                if let info = getLEDeviceInfoFromUUID(uuid.description) {
-                    blName = info.name
-                    macAddr = info.macAddr
+            
+            if let name = peripheral?.name {
+                if name.trimmingCharacters(in: .whitespaces).count > 7 {
+                    return name
                 }
             }
-            if macAddr == nil {
-                macAddr = getMACFromUUID(uuid.description)
-            }
-            if let mac = macAddr {
-                if blName == nil {
-                    blName = getNameFromMAC(mac)
-                }
+            if macAddr != nil {
                 if let name = blName {
-                    // If it's just "iPhone" or "iPad", there's a chance we can get the model name in the following code
+                    // 如果只是“iPhone”或“iPad”，我们有机会在下面的代码中获取型号名称
                     if name != "iPhone" && name != "iPad" {
                         return name
                     }
@@ -68,11 +42,6 @@ class Device: NSObject {
                     return String(format: "%@/%@", manu, mod)
                 } else {
                     return manu
-                }
-            }
-            if let name = peripheral?.name {
-                if name.trimmingCharacters(in: .whitespaces).count != 0 {
-                    return name
                 }
             }
             if let mod = model {
@@ -377,10 +346,10 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     
     //MARK:- CBPeripheralDelegate start
 
+    // 读取外围设备信号强度 peripheral 外围设备对象  didReadRSSI 信号强度
     func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         guard peripheral == monitoredPeripheral else { return }
         let rssi = RSSI.intValue > 0 ? 0 : RSSI.intValue
-        //print("readRSSI \(rssi)dBm")
         updateMonitoredPeripheral(rssi)
         lastReadAt = Date().timeIntervalSince1970
 

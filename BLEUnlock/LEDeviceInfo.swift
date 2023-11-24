@@ -8,7 +8,9 @@ private var db_other: OpaquePointer?
 
 private func connect() {
     if inited { return }
-
+    let resultCode = sqlite3_open("/Library/Bluetooth/com.apple.MobileBluetooth.ledevices.paired.db", &db_paired)
+    let errorMessage = String(cString: sqlite3_errmsg(db_paired))
+            print("Failed to open the database. Error code: \(resultCode), Error: \(errorMessage)")
     if sqlite3_open("/Library/Bluetooth/com.apple.MobileBluetooth.ledevices.paired.db", &db_paired) == SQLITE_OK {
         print("paired.db open success")
     } else {

@@ -10,6 +10,7 @@ func t(_ key: String) -> String {
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation, NSUserNotificationCenterDelegate, BLEDelegate {
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let ble = BLE()
+    let sc = SC()
     let mainMenu = NSMenu()
     let deviceMenu = NSMenu()
     let lockRSSIMenu = NSMenu()
@@ -311,7 +312,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
 
     @objc func onDisplayWake() {
-        print("display wake")
+        print("onDisplayWake")
+        sc.openApp()
         unlockedAt = Date().timeIntervalSince1970
         displaySleep = false
         wakeTimer?.invalidate()
@@ -320,12 +322,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
 
     @objc func onDisplaySleep() {
-        print("display sleep")
+        print("onDisplaySleep")
+        sc.killApp()
         displaySleep = true
     }
 
     @objc func onSystemWake() {
-        print("system wake")
+        print("onSystemWake")
         Timer.scheduledTimer(withTimeInterval: 1, repeats: false, block: { _ in
             print("delayed system wake job")
             NSApp.setActivationPolicy(.accessory) // Hide Dock icon again
@@ -335,7 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
     
     @objc func onSystemSleep() {
-        print("system sleep")
+        print("onSystemSleep")
         systemSleep = true
         // Set activation policy to regular, so the CBCentralManager can scan for peripherals
         // when the Bluetooth will become on again.
@@ -344,6 +347,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
 
     @objc func onUnlock() {
+        print(Date(), "onUnlock")
         Timer.scheduledTimer(withTimeInterval: 2, repeats: false, block: { _ in
             print("onUnlock")
             if Date().timeIntervalSince1970 >= self.unlockedAt + 10 {
@@ -361,12 +365,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
 
     @objc func onScreensaverStart() {
-        print("screensaver start")
+        print("onScreensaverStart")
         inScreensaver = true
     }
 
     @objc func onScreensaverStop() {
-        print("screensaver stop")
+        print("onScreensaverStop")
         inScreensaver = false
     }
 
@@ -384,6 +388,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
     func monitorDevice(uuid: UUID) {
         connected = false
+        // 设置图标
         statusItem.button?.image = NSImage(named: "StatusBarDisconnected")
         monitorMenuItem?.title = t("not_detected")
         ble.startMonitor(uuid: uuid)
@@ -744,18 +749,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
         // 事件监听
         let nc = NSWorkspace.shared.notificationCenter;
-        // 屏幕睡眠通知
+        // 屏幕睡眠通知1
         nc.addObserver(self, selector: #selector(onDisplaySleep), name: NSWorkspace.screensDidSleepNotification, object: nil)
-        // 屏幕唤醒通知
+        // 屏幕唤醒通知2
         nc.addObserver(self, selector: #selector(onDisplayWake), name: NSWorkspace.screensDidWakeNotification, object: nil)
         // 系统即将进入睡眠
         nc.addObserver(self, selector: #selector(onSystemSleep), name: NSWorkspace.willSleepNotification, object: nil)
         // 系统从睡眠状态唤醒
         nc.addObserver(self, selector: #selector(onSystemWake), name: NSWorkspace.didWakeNotification, object: nil)
 
+        // 分布式通知中心的实例。这个中心允许在应用程序之间共享通知。
         let dnc = DistributedNotificationCenter.default
+        // 屏幕被解锁3
         dnc.addObserver(self, selector: #selector(onUnlock), name: NSNotification.Name(rawValue: "com.apple.screenIsUnlocked"), object: nil)
+        // 屏幕保护程序启动
         dnc.addObserver(self, selector: #selector(onScreensaverStart), name: NSNotification.Name(rawValue: "com.apple.screensaver.didstart"), object: nil)
+        // 屏幕保护程序停止
         dnc.addObserver(self, selector: #selector(onScreensaverStop), name: NSNotification.Name(rawValue: "com.apple.screensaver.didstop"), object: nil)
 
         if ble.unlockRSSI != ble.UNLOCK_DISABLED && !prefs.bool(forKey: "wakeWithoutUnlocking") && fetchPassword() == nil {
